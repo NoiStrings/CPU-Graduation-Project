@@ -70,11 +70,36 @@ class TrainSetLoader(Dataset):
         label = dispGT.astype('float32')
         data = ToTensor()(data.copy())
         label = ToTensor()(label.copy())
+        # lf.shape = (u v h w)
+        # disp.shape = (h w)
 
         return data, label
 
     def __len__(self):
         return self.length
+
+
+class AllSetLoader(Dataset):
+    def __init__(self, config, kind):
+        super(AllSetLoader, self).__init__()
+        self.set_dir = None
+        if kind == "valid":
+            self.set_dir = config.validset_dir
+        elif kind == "test":
+            self.set_dir = config.testset_dir
+        self.source_files = sorted(os.listdir(self.set_dir))
+        self.angRes = config.angRes
+        self.length = len(self.source_files)
+        
+    def __getitem__(self, idx):
+        "?????????????????????????????????????????????????????????????????????????/"
+    
+    def __len__(self):
+        return self.length
+        
+        
+        
+        
 
 def DataAugmentation(lf, disp):
     # lf.shape = (u v h w c), c = RGB
@@ -88,6 +113,7 @@ def DataAugmentation(lf, disp):
 
     lf_Aug3 = np.reshape(lf_Aug3, (9, 9, 512, 512))
     return lf_Aug3, disp_Aug2
+
 
 def IlluminanceAugmentation(lf):
     # lf.shape = ((u v) h w c), c = RGB
@@ -111,6 +137,7 @@ def IlluminanceAugmentation(lf):
     lf_Gray = np.clip(lf_Gray, 0, 255)
     # lf_Gray.shape = ((u v) h w)
     return lf_Gray
+
 
 def ScaleAugmentation(lf, disp):
     # lf.shape = ((u v) h w)

@@ -15,11 +15,13 @@ import numpy
 from einops import rearrange
 from easydict import EasyDict
 
+'''
 config = EasyDict()
 config.angRes = 9
 config.dispMin = -4
 config.dispMax = 4
 config.device = 'WTF'
+'''
 
 
 class Net(nn.Module):
@@ -32,10 +34,11 @@ class Net(nn.Module):
         self.cost_constructor = Cost_Constructor(config, channels_in = 8, channels_out = 512)
         self.cost_aggregator = Cost_Aggregator(config, channels_in = 512)
     def forward(self, lf, dispGT = None):
-        # lf.shape = (b c (u h) (v w)), c = 1
-        # dispGT.shape = (b c h w), c = 2
-        lf = rearrange(lf, "b c (u h) (v w) -> b c u v h w",
-                       u = self.angRes, v = self.angRes)
+        # lf.shape = (b u v h w)
+        # dispGT.shape = (b h w)
+        
+        lf = rearrange(lf, "b u v h w -> b c u v h w", c = 1, u = self.angRes, v = self.angRes)
+        dispGT = rearrange(dispGT, "b h w -> b c h w", c = 1)
         _, _, u, v, h, w = lf.shape
 
         feature_map = self.feature_extracion(lf)
@@ -55,6 +58,7 @@ class Net(nn.Module):
             mask = self.mask_generator(lf, dispInit)
             cost = self.cost_constructor(feature_map, mask)
             dispPred = self.cost_aggregator(cost)
+            # dispPred.shape = (b c h w), c = 1
         return dispPred
 
 class Feature_Extraction(nn.Module):
