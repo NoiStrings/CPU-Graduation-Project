@@ -54,11 +54,11 @@ class TrainSetLoader(Dataset):
         mask = np.zeros((512, 512), dtype = float)
 
         for i in range(9 * 9):
-            SAI_path = self.trainset_dir + scene_name + '\\input_Cam0{}.png'.format(i)
+            SAI_path = self.trainset_dir + scene_name + '/input_Cam0{}.png'.format(i)
             SAI = imageio.imread(SAI_path)
             lf[i // 9, i % 9, :, :, :] = SAI
-        disp_path = self.trainset_dir + scene_name + '\\gt_disp_lowres.pfm'
-        mask_path = self.trainset_dir + scene_name + '\\valid_mask.png'
+        disp_path = self.trainset_dir + scene_name + '/gt_disp_lowres.pfm'
+        mask_path = self.trainset_dir + scene_name + '/valid_mask.png'
         dispGT[:, :] = np.float32(read_pfm(disp_path))
         mask_rgb = imageio.imread(mask_path)
         mask = np.float32(mask_rgb[:, :, 1] > 0)
@@ -98,10 +98,10 @@ class AllSetLoader(Dataset):
         dispGT = np.zeros((512, 512), dtype = float)
 
         for i in range(9 * 9):
-            SAI_path = self.validset_dir + scene_name + '\\input_Cam0{}.png'.format(i)
+            SAI_path = self.validset_dir + scene_name + '/input_Cam0{}.png'.format(i)
             SAI = imageio.imread(SAI_path)
             lf[i // 9, i % 9, :, :, :] = SAI
-        disp_path = self.validset_dir + scene_name + '\\gt_disp_lowres.pfm'
+        disp_path = self.validset_dir + scene_name + '/gt_disp_lowres.pfm'
         dispGT[:, :] = np.float32(read_pfm(disp_path))
         
         lf = np.mean(lf, axis = -1, keepdim = False) / 255
