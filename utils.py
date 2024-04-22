@@ -49,7 +49,7 @@ class TrainSetLoader(Dataset):
         scene_id = self.scene_idx[idx]
         scene_name = self.source_files[scene_id]
 
-        lf = np.zeros((9, 9, 512, 512, 3), dtype = "int16")
+        lf = np.zeros((9, 9, 512, 512, 3), dtype = "uint8")
         dispGT = np.zeros((512, 512), dtype = "float32")
         mask = np.zeros((512, 512), dtype = "float32")
 
@@ -94,8 +94,8 @@ class AllSetLoader(Dataset):
     def __getitem__(self, idx):
         scene_name = self.source_files[idx]
         
-        lf = np.zeros((9, 9, 512, 512, 3), dtype = int)
-        dispGT = np.zeros((512, 512), dtype = float)
+        lf = np.zeros((9, 9, 512, 512, 3), dtype = "uint8")
+        dispGT = np.zeros((512, 512), dtype = "float32")
 
         for i in range(9 * 9):
             SAI_path = self.validset_dir + scene_name + '/input_Cam0{:0>2}.png'.format(i)
