@@ -22,10 +22,10 @@ def getConfig():
     config = EasyDict()
 
     config.cwd = os.getcwd()
-    config.save_path = config.cwd + "\\models\\"
-    config.trainset_dir = config.cwd + "\\dataset\\training\\"
-    config.validset_dir = config.cwd + "\\dataset\\validation\\"
-    config.testset_dir = config.cwd + "\\dataset\\test\\"
+    config.save_path = config.cwd + "/models/"
+    config.trainset_dir = config.cwd + "/dataset/training/"
+    config.validset_dir = config.cwd + "/dataset/validation/"
+    config.testset_dir = config.cwd + "/dataset/test/"
     config.angRes = 9
     config.dispMin = -4
     config.dispMax = 4
@@ -86,7 +86,7 @@ def Train(config):
             loss_log.append(loss_epoch_avg)
             
             log_info = "[Train] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {}".format(i_epoch, loss_epoch_avg)
-            with open("logs\\train_log.txt", "a") as f:
+            with open("logs/train_log.txt", "a") as f:
                 f.write(log_info)
                 f.write("\n")
             print(log_info)
@@ -130,7 +130,7 @@ def Valid(NET, config, i_epoch):
         
         loss_avg = np.array(loss_log).mean()
         log_info = "[Valid] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {}".format(i_epoch, loss_avg)
-        with open("logs\\valid_log.txt", "a") as f:
+        with open("logs/valid_log.txt", "a") as f:
             f.write(log_info)
             f.write("\n")
         print(log_info)
