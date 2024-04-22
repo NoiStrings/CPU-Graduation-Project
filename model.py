@@ -29,7 +29,7 @@ class Net(nn.Module):
         super(Net, self).__init__()
         self.angRes = config.angRes
         self.device = config.device
-        self.feature_extracion = Feature_Extraction(config)
+        self.feature_extracion = Feature_Extraction()
         self.mask_generator = Mask_Generator(config)
         self.cost_constructor = Cost_Constructor(config, channels_in = 8, channels_out = 512)
         self.cost_aggregator = Cost_Aggregator(config, channels_in = 512)
