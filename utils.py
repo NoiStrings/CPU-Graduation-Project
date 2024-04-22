@@ -54,7 +54,7 @@ class TrainSetLoader(Dataset):
         mask = np.zeros((512, 512), dtype = float)
 
         for i in range(9 * 9):
-            SAI_path = self.trainset_dir + scene_name + '/input_Cam0{}.png'.format(i)
+            SAI_path = self.trainset_dir + scene_name + '/input_Cam0{:0>2}.png'.format(i)
             SAI = imageio.imread(SAI_path)
             lf[i // 9, i % 9, :, :, :] = SAI
         disp_path = self.trainset_dir + scene_name + '/gt_disp_lowres.pfm'
@@ -98,7 +98,7 @@ class AllSetLoader(Dataset):
         dispGT = np.zeros((512, 512), dtype = float)
 
         for i in range(9 * 9):
-            SAI_path = self.validset_dir + scene_name + '/input_Cam0{}.png'.format(i)
+            SAI_path = self.validset_dir + scene_name + '/input_Cam0{:0>2}.png'.format(i)
             SAI = imageio.imread(SAI_path)
             lf[i // 9, i % 9, :, :, :] = SAI
         disp_path = self.validset_dir + scene_name + '/gt_disp_lowres.pfm'
