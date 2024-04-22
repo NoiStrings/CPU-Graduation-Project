@@ -20,17 +20,16 @@ from utils import *
 
 def getConfig():
     config = EasyDict()
-    
-    config.cwd = r"D:\Graduation Design\MyCode"
-    config.save_path = config.cwd + r"\models"
-    config.trainset_dir = "????????????????????????????"
-    config.validset_dir = "????????????????????????????"
-    config.testset_dir = "????????????????????????????"
+
+    config.cwd = os.getcwd()
+    config.save_path = config.cwd + "\\models\\"
+    config.trainset_dir = config.cwd + "\\dataset\\training\\"
+    config.validset_dir = config.cwd + "\\dataset\\validation\\"
+    config.testset_dir = config.cwd + "\\dataset\\test\\"
     config.angRes = 9
     config.dispMin = -4
     config.dispMax = 4
     config.device = 'cuda:0'
-    config.trainset_dir = '?????'
     config.lr = 0.001
     config.n_epochs = 3500          # lr scheduler updating frequency
     config.max_epochs = 3500
@@ -87,7 +86,7 @@ def Train(config):
             loss_log.append(loss_epoch_avg)
             
             log_info = "[Train] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {}".format(i_epoch, loss_epoch_avg)
-            with open("train_log.txt", "a") as f:
+            with open("logs\\train_log.txt", "a") as f:
                 f.write(log_info)
                 f.write("\n")
             print(log_info)
@@ -96,7 +95,7 @@ def Train(config):
             torch.save({
                 'epoch': i_epoch + 1,
                 'model_state_dict': NET.state_dict()
-            }, os.path.join("log", "model_{:0>4}.pth".format(i_epoch + 1)))
+            }, os.path.join("models", "model_{:0>4}.pth".format(i_epoch + 1)))
             
             Valid(NET, config, i_epoch)
         
@@ -131,7 +130,7 @@ def Valid(NET, config, i_epoch):
         
         loss_avg = np.array(loss_log).mean()
         log_info = "[Valid] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {}".format(i_epoch, loss_avg)
-        with open("valid_log.txt", "a") as f:
+        with open("logs\\valid_log.txt", "a") as f:
             f.write(log_info)
             f.write("\n")
         print(log_info)
