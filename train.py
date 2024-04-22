@@ -52,7 +52,7 @@ def Train(config):
     Optimizer = torch.optim.Adam([paras for paras in NET.parameters() 
                                   if paras.requires_grad == True], lr = config.lr)
     Scheduler = torch.optim.lr_scheduler.StepLR(Optimizer, 
-                                                step_size = config.n_steps,
+                                                step_size = config.n_epochs,
                                                 gamma = config.gamma)
     loss_log = []
     
