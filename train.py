@@ -139,10 +139,10 @@ def Valid(NET, config, i_epoch):
     
 if __name__ == "__main__":
     config = getConfig()
-    os.chdir(config.cwd)
+    '''os.chdir(config.cwd)
     if not (os.path.exists(config.save_path) and os.path.isdir(config.save_path)):
-        os.makedirs("models")
-    
+        os.makedirs("models")'''
+    Train(config)
     
     
     
