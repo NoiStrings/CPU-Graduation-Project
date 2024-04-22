@@ -66,12 +66,17 @@ class TrainSetLoader(Dataset):
         lf, dispGT = DataAugmentation(lf, dispGT)
         # lf.shape = (u v h w)
         # disp.shape = (h w)
-        data = lf.astype('float32')
+        lf_temp = rearrange(lf, 'u v h w -> (u h) (v w)', u = self.angRes, v = self.angRes)
+        # ToTensor() only supports 2-or-3-dims images
+        
+        data = lf_temp.astype('float32')
         label = dispGT.astype('float32')
         data = ToTensor()(data.copy())
         label = ToTensor()(label.copy())
-        # lf.shape = (u v h w)
-        # disp.shape = (h w)
+        
+        data = rearrange(data, '(u h) (v w) -> u v h w', u = self.angRes, v = self.angRes)
+        # data.shape = (u v h w)
+        # label.shape = (h w)
 
         return data, label
 
