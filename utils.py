@@ -38,10 +38,10 @@ class TrainSetLoader(Dataset):
 
         no_reflection_idx = [0, 1, 2, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14]
         with_reflection_idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-        for i in range(60):
+        for i in range(80):
             self.scene_idx += no_reflection_idx
-        for i in range(20):
-            self.scene_idx += with_reflection_idx
+        '''for i in range(20):
+            self.scene_idx += with_reflection_idx'''
 
         self.length = len(self.scene_idx)
 
@@ -82,18 +82,34 @@ class TrainSetLoader(Dataset):
 class AllSetLoader(Dataset):
     def __init__(self, config, kind):
         super(AllSetLoader, self).__init__()
-        self.set_dir = None
+        self.dataset_dir = None
         if kind == "valid":
-            self.set_dir = config.validset_dir
+            self.dataset_dir = config.validset_dir
         elif kind == "test":
-            self.set_dir = config.testset_dir
-        self.source_files = sorted(os.listdir(self.set_dir))
+            self.dataset_dir = config.testset_dir
+        self.source_files = sorted(os.listdir(self.dataset_dir))
         self.angRes = config.angRes
         self.length = len(self.source_files)
         
     def __getitem__(self, idx):
-        "?????????????????????????????????????????????????????????????????????????/"
-    
+        scene_name = self.source_files[idx]
+        
+        lf = np.zeros((9, 9, 512, 512, 3), dtype = int)
+        dispGT = np.zeros((512, 512), dtype = float)
+
+        for i in range(9 * 9):
+            SAI_path = self.validset_dir + scene_name + '/input_Cam0{}.png'.format(i)
+            SAI = imageio.imread(SAI_path)
+            lf[i // 9, i % 9, :, :, :] = SAI
+        disp_path = self.validset_dir + scene_name + '/gt_disp_lowres.pfm'
+        dispGT[:, :] = np.float32(read_pfm(disp_path))
+        
+        lf = np.mean(lf, axis = -1, keepdim = False) / 255
+        # lf.shape = (u v h w)
+        # dispGT.shape = (h w)
+        
+        return lf, dispGT
+
     def __len__(self):
         return self.length
         

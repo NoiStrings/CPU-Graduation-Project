@@ -86,7 +86,7 @@ def Train(config):
             loss_epoch_avg = np.array(loss_epoch_log).mean()
             loss_log.append(loss_epoch_avg)
             
-            log_info = time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {}".format(i_epoch, loss_epoch_avg)
+            log_info = "[Train] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {}".format(i_epoch, loss_epoch_avg)
             with open("train_log.txt", "a") as f:
                 f.write(log_info)
                 f.write("\n")
@@ -102,15 +102,41 @@ def Train(config):
         
         Scheduler.step()
         
+    return
+        
         
 def Valid(NET, config, i_epoch):
     torch.no_grad()
-    scenes = ['boxes', 'cotton', 'dino', 'sideboard']
+    
+    Loss = torch.nn.L1Loss().to(config.device)
+    
+    ValidSet = AllSetLoader(config, kind = 'valid')
+    ValidDataLoader = DataLoader(dataset = ValidSet, batch_size = 1, shuffle = False)   
     
     "///Validation///"
-    for scene in scenes:
-        "???????????????????????????????????????????????????????????????????"
-    
+    with torch.no_grad():
+        loss_log = []
+        for i_iter, (lf, dispGT) in tqdm(enumerate(ValidDataLoader), 
+                                           total = len(ValidSet)):
+            lf = lf.to(config.device)
+            dispGT = dispGT.to(config.device)
+            # lf.shape = (b u v h w)
+            # dispGT.shape = (b h w)
+            
+            dispPred = NET(lf, dispGT)
+            # dispPred.shape = (b c h w), c = 1
+            
+            loss_i = Loss(dispPred.squeeze(), dispGT)
+            loss_log.append(loss_i.data.cpu())
+        
+        loss_avg = np.array(loss_log).mean()
+        log_info = "[Valid] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {}".format(i_epoch, loss_avg)
+        with open("valid_log.txt", "a") as f:
+            f.write(log_info)
+            f.write("\n")
+        print(log_info)
+        
+    return
     
 if __name__ == "__main__":
     config = getConfig()
