@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
 import numpy as np
 from easydict import EasyDict
-import tqdm
+from tqdm import tqdm
 import time
 import os
 from model import Net
