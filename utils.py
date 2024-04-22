@@ -75,9 +75,9 @@ class TrainSetLoader(Dataset):
         data = ToTensor()(data.copy())
         label = ToTensor()(label.copy())
         
-        data = rearrange(data, '(u h) (v w) -> u v h w', u = self.angRes, v = self.angRes)
-        # data.shape = (u v h w)
-        # label.shape = (h w)
+        data = rearrange(data, 'c (u h) (v w) -> c u v h w', u = self.angRes, v = self.angRes)
+        # data.shape = (c u v h w), c = 1
+        # label.shape = (c h w), c = 1
 
         return data, label
 
