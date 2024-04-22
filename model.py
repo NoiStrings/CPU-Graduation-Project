@@ -34,11 +34,9 @@ class Net(nn.Module):
         self.cost_constructor = Cost_Constructor(config, channels_in = 8, channels_out = 512)
         self.cost_aggregator = Cost_Aggregator(config, channels_in = 512)
     def forward(self, lf, dispGT = None):
-        # lf.shape = (b u v h w)
-        # dispGT.shape = (b h w)
+        # lf.shape = (b c u v h w)
+        # dispGT.shape = (b c h w)
         
-        lf = rearrange(lf, "b u v h w -> b c u v h w", c = 1, u = self.angRes, v = self.angRes)
-        dispGT = rearrange(dispGT, "b h w -> b c h w", c = 1)
         _, _, u, v, h, w = lf.shape
 
         feature_map = self.feature_extracion(lf)
