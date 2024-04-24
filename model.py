@@ -11,6 +11,7 @@ Original file is located at
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import gc
 import numpy
 from einops import rearrange
 from easydict import EasyDict
@@ -192,6 +193,10 @@ class Feature_Modulator(nn.Module):
     def forward(self, feature_map, mask):
         # feature_map.shape = (b c (u hp) (v wp)), c = 8, hp = h_padded, wp = w_padded
         # mask.shape = (b c h w), c = 9 * 9
+        '''清缓存'''
+        gc.collect()
+        torch.cuda.empty_cache()
+        
         angular_patches = self.getPatches(feature_map)
         mask_unfold = self.maskUnfold(mask)
         # angular_patches.shape = (b (c k^2) l), c = 8, k = kernel_size = 9, l = num of areas covered by kernel = 512 * 512
