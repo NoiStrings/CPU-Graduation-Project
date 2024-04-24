@@ -176,6 +176,10 @@ class Cost_Constructor(nn.Module):
             cost_i = self.modulator(feature_map, mask)
             # cost_i.shape = (b c h w), c = 512
             costs.append(cost_i // mask_avg.unsqueeze(1).repeat(1, cost_i.shape[1], 1, 1))
+
+            '''Debugging'''
+            print("cost_i: ", disp_i)
+        
         cost = torch.stack(costs, dim = 2)
         # cost.shape = (b c d h w), c = 512, d = num of candidate disp = dispMax - dispMin + 1 = 9
         return cost
