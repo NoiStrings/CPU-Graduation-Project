@@ -44,8 +44,9 @@ def Train(config):
         print('--Cuda Unavailable!--')
         return
         
-    memory_summary = torch.cuda.memory_summary(0)
-    print(memory_summary)
+    device_properties = torch.cuda.get_device_properties(0)  # 0 是设备索引，如果有多个 GPU，可能需要更改
+    total_memory = device_properties.total_memory  # 总内存，以字节为单位
+    print(f"Total CUDA Memory: {total_memory / 1024**3:.2f} GB")
     
     NET = Net(config)
     NET.to(config.device)
