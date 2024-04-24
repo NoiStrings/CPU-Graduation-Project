@@ -9,6 +9,7 @@ Created on Wed Apr 17 19:50:57 2024
 import torch
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
+from torch.cuda.amp import autocast
 import numpy as np
 from easydict import EasyDict
 from tqdm import tqdm
@@ -74,13 +75,14 @@ def Train(config):
             dispGTs = dispGTs.to(config.device)
             # lfs.shape = (b u v h w)
             # dispGTs.shape = (b h w)
+
+            with autocast():                                   
+                dispPred = NET(lfs, dispGTs)
+                # dispPred.shape = (b c h w), c = 1
             
-            dispPred = NET(lfs, dispGTs)
-            # dispPred.shape = (b c h w), c = 1
-            
-            loss_i = Loss(dispPred.squeeze(), dispGTs)
-            Optimizer.zero_grad()
-            loss_i.backward()
+                loss_i = Loss(dispPred.squeeze(), dispGTs)
+                Optimizer.zero_grad()
+                loss_i.backward()
             Optimizer.step()
             
             loss_epoch_log.append(loss_i.data.cpu())
