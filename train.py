@@ -33,7 +33,7 @@ def getConfig():
     config.lr = 0.001
     config.n_epochs = 3500          # lr scheduler updating frequency
     config.max_epochs = 3500
-    config.batch_size = 2
+    config.batch_size = 1
     config.n_threads = 0            # num of used threads of DataLoader
     config.gamma = 0.5              # lr scheduler decaying rate
     return config
