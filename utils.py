@@ -51,8 +51,8 @@ class TrainSetLoader(Dataset):
         scene_name = self.source_files[scene_id]
 
         lf = np.zeros((9, 9, 512, 512, 3), dtype = "uint8")
-        dispGT = np.zeros((512, 512), dtype = "float16")
-        mask = np.zeros((512, 512), dtype = "float16")
+        dispGT = np.zeros((512, 512), dtype = "float32")
+        mask = np.zeros((512, 512), dtype = "float32")
 
         for i in range(9 * 9):
             SAI_path = self.trainset_dir + scene_name + '/input_Cam0{:0>2}.png'.format(i)
@@ -70,8 +70,8 @@ class TrainSetLoader(Dataset):
         lf_temp = rearrange(lf, 'u v h w -> (u h) (v w)', u = self.angRes, v = self.angRes)
         # ToTensor() only supports 2-or-3-dims images
         
-        data = lf_temp.astype('float16')
-        label = dispGT.astype('float16')
+        data = lf_temp.astype('float32')
+        label = dispGT.astype('float32')
         data = ToTensor()(data.copy())
         label = ToTensor()(label.copy())
         
