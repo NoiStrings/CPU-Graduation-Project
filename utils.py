@@ -70,8 +70,8 @@ class TrainSetLoader(Dataset):
         lf_temp = rearrange(lf, 'u v h w -> (u h) (v w)', u = self.angRes, v = self.angRes)
         # ToTensor() only supports 2-or-3-dims images
         
-        data = lf_temp.astype('float32')
-        label = dispGT.astype('float32')
+        data = lf_temp.astype('float16')
+        label = dispGT.astype('float16')
         data = ToTensor()(data.copy())
         label = ToTensor()(label.copy())
         
