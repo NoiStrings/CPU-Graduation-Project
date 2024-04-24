@@ -63,18 +63,18 @@ class Feature_Extraction(nn.Module):
     def __init__(self):
         super(Feature_Extraction, self).__init__()
         self.initial_extraction = nn.Sequential(
-            nn.Conv3d(1, 16, kernel_size = (1,3,3),
+            nn.Conv3d(1, 8, kernel_size = (1,3,3),
                       stride = 1, padding = (0, 1, 1), bias = False),
-            nn.BatchNorm3d(16)
+            nn.BatchNorm3d(8)
             )
         self.deep_extraction = nn.Sequential(
-            ResBlock(16), ResBlock(16),
-            ResBlock(16), ResBlock(16),
-            ResBlock(16), ResBlock(16),
-            nn.Conv3d(16, 16, kernel_size = (1, 3, 3),
+            ResBlock(8), ResBlock(8),
+            ResBlock(8), ResBlock(8),
+            ResBlock(8), ResBlock(8),
+            nn.Conv3d(8, 8, kernel_size = (1, 3, 3),
                       stride = 1, padding = (0, 1, 1), bias = False),
-            nn.BatchNorm3d(16), nn.LeakyReLU(0.1, inplace = True),
-            nn.Conv3d(16, 8, kernel_size = (1, 3, 3),
+            nn.BatchNorm3d(8), nn.LeakyReLU(0.1, inplace = True),
+            nn.Conv3d(8, 8, kernel_size = (1, 3, 3),
                       stride = 1, padding = (0, 1, 1), bias = False),
             nn.BatchNorm3d(8), nn.LeakyReLU(0.1, inplace = True)
             )
