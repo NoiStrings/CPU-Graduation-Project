@@ -43,13 +43,9 @@ def Train(config):
     if not torch.cuda.is_available():
         print('--Cuda Unavailable!--')
         return
-
-    device = torch.cuda.current_device()
-    cuda_memory_stats = torch.cuda.memory_stats(device)
-    total_memory = cuda_memory_stats["allocated_bytes.all.peak"]
-    allocated_memory = cuda_memory_stats["allocated_bytes.current"]
-    print(f"Total CUDA Memory: {total_memory / 1024**3:.2f} GB")
-    print(f"Allocated CUDA Memory: {allocated_memory / 1024**3:.2f} GB")
+        
+    memory_summary = torch.cuda.memory_summary(0)
+    print(memory_summary)
     
     NET = Net(config)
     NET.to(config.device)
