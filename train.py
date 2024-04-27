@@ -9,10 +9,9 @@ Created on Wed Apr 17 19:50:57 2024
 import torch
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
-from torch.cuda.amp import autocast
 import numpy as np
 from easydict import EasyDict
-from tqdm import tqdm
+import tqdm
 import time
 import os
 from model import Net
@@ -23,10 +22,10 @@ def getConfig():
     config = EasyDict()
 
     config.cwd = os.getcwd()
-    config.save_path = config.cwd + "/models/"
-    config.trainset_dir = config.cwd + "/dataset/training/"
-    config.validset_dir = config.cwd + "/dataset/validation/"
-    config.testset_dir = config.cwd + "/dataset/test/"
+    config.save_path = config.cwd + "\\models\\"
+    config.trainset_dir = config.cwd + "\\dataset\\training\\"
+    config.validset_dir = config.cwd + "\\dataset\\validation\\"
+    config.testset_dir = config.cwd + "\\dataset\\test\\"
     config.angRes = 9
     config.dispMin = -4
     config.dispMax = 4
@@ -34,8 +33,8 @@ def getConfig():
     config.lr = 0.001
     config.n_epochs = 3500          # lr scheduler updating frequency
     config.max_epochs = 3500
-    config.batch_size = 1
-    config.n_threads = 0            # num of used threads of DataLoader
+    config.batch_size = 16
+    config.n_threads = 8            # num of used threads of DataLoader
     config.gamma = 0.5              # lr scheduler decaying rate
     return config
 
@@ -44,10 +43,6 @@ def Train(config):
     if not torch.cuda.is_available():
         print('--Cuda Unavailable!--')
         return
-        
-    device_properties = torch.cuda.get_device_properties(0)  # 0 是设备索引，如果有多个 GPU，可能需要更改
-    total_memory = device_properties.total_memory  # 总内存，以字节为单位
-    print(f"Total CUDA Memory: {total_memory / 1024**3:.2f} GB")
     
     NET = Net(config)
     NET.to(config.device)
@@ -57,7 +52,7 @@ def Train(config):
     Optimizer = torch.optim.Adam([paras for paras in NET.parameters() 
                                   if paras.requires_grad == True], lr = config.lr)
     Scheduler = torch.optim.lr_scheduler.StepLR(Optimizer, 
-                                                step_size = config.n_epochs,
+                                                step_size = config.n_steps,
                                                 gamma = config.gamma)
     loss_log = []
     
@@ -75,14 +70,13 @@ def Train(config):
             dispGTs = dispGTs.to(config.device)
             # lfs.shape = (b u v h w)
             # dispGTs.shape = (b h w)
-
-            with autocast():                                   
-                dispPred = NET(lfs, dispGTs)
-                # dispPred.shape = (b c h w), c = 1
             
-                loss_i = Loss(dispPred.squeeze(), dispGTs)
-                Optimizer.zero_grad()
-                loss_i.backward()
+            dispPred = NET(lfs, dispGTs)
+            # dispPred.shape = (b c h w), c = 1
+            
+            loss_i = Loss(dispPred.squeeze(), dispGTs)
+            Optimizer.zero_grad()
+            loss_i.backward()
             Optimizer.step()
             
             loss_epoch_log.append(loss_i.data.cpu())
@@ -92,7 +86,7 @@ def Train(config):
             loss_log.append(loss_epoch_avg)
             
             log_info = "[Train] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {}".format(i_epoch, loss_epoch_avg)
-            with open("logs/train_log.txt", "a") as f:
+            with open("logs\\train_log.txt", "a") as f:
                 f.write(log_info)
                 f.write("\n")
             print(log_info)
@@ -136,7 +130,7 @@ def Valid(NET, config, i_epoch):
         
         loss_avg = np.array(loss_log).mean()
         log_info = "[Valid] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {}".format(i_epoch, loss_avg)
-        with open("logs/valid_log.txt", "a") as f:
+        with open("logs\\valid_log.txt", "a") as f:
             f.write(log_info)
             f.write("\n")
         print(log_info)

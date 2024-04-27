@@ -170,16 +170,19 @@ class Cost_Constructor(nn.Module):
         costs = []
         for disp_i in range(self.dispMin, self.dispMax + 1):
             self.modulator.dilation_rate = h_padded - disp_i
-            if disp_i != self.dispMin:
+            if disp_i == self.dispMin:
+                feature_map_cropped = feature_map
+            else:
                 crop = (self.angRes // 2) * (disp_i - self.dispMin)
-                feature_map = feature_map[:, :, crop: -crop, crop: -crop]
-            cost_i = self.modulator(feature_map, mask)
+                feature_map_cropped = feature_map[:, :, crop: -crop, crop: -crop]
+            cost_i = self.modulator(feature_map_cropped, mask)
             # cost_i.shape = (b c h w), c = 512
-            costs.append(cost_i // mask_avg.unsqueeze(1).repeat(1, cost_i.shape[1], 1, 1))
 
-            '''Debugging'''
-            print("cost_i: ", disp_i)
-        
+            '''清缓存'''
+            gc.collect()
+            torch.cuda.empty_cache()
+
+            costs.append(cost_i / mask_avg.unsqueeze(1).repeat(1, cost_i.shape[1], 1, 1))        
         cost = torch.stack(costs, dim = 2)
         # cost.shape = (b c d h w), c = 512, d = num of candidate disp = dispMax - dispMin + 1 = 9
         return cost
@@ -190,7 +193,7 @@ class Feature_Modulator(nn.Module):
         self.dilation_rate = dilation_rate
         self.kernel_size = kernel_size
         self.maskUnfold = nn.Unfold(kernel_size=1, stride=1, dilation=1, padding=0)
-        self.getPatches = nn.Unfold(kernel_size=self.kernel_size, stride=1, dilation=self.dilation_rate)
+        # self.getPatches = nn.Unfold(kernel_size=self.kernel_size, stride=1, dilation=self.dilation_rate)
         self.finalConv = nn.Conv2d(in_channels = channels_in * kernel_size * kernel_size,
                                    out_channels = channels_out,
                                    kernel_size=1, stride=1, padding=0, bias=False, groups=channels_in)
@@ -202,7 +205,11 @@ class Feature_Modulator(nn.Module):
         gc.collect()
         torch.cuda.empty_cache()
         
-        angular_patches = self.getPatches(feature_map)
+        getPatches = nn.Unfold(kernel_size=self.kernel_size, stride=1, dilation=self.dilation_rate)
+        # print("dila: ", self.dilation_rate)
+        # print("H: ", feature_map.shape[2])
+
+        angular_patches = getPatches(feature_map)
         mask_unfold = self.maskUnfold(mask)
         # angular_patches.shape = (b (c k^2) l), c = 4, k = kernel_size = 9, l = num of areas covered by kernel = 512 * 512
         # mask_unfold.shape = (b (c k^2) l), c = 9 * 9, k = 1, l = 512 * 512
@@ -211,6 +218,11 @@ class Feature_Modulator(nn.Module):
         patchFold = nn.Fold(output_size=(mask.shape[2], mask.shape[3]), kernel_size=1, stride=1)
         feature_map_modulated = patchFold(angular_patches_modulated)
         # feature_map_modulated.shape = (b c h w), c = 81 * 4, h = w = 512
+
+        '''清缓存'''
+        gc.collect()
+        torch.cuda.empty_cache()
+
         cost = self.finalConv(feature_map_modulated)
         # cost.shape = (b c h w), c = 512
         return cost
