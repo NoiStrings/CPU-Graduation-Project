@@ -20,14 +20,6 @@ import imageio
 import imgaug.augmenters as iaa
 from func_pfm import read_pfm
 
-# # Commented out IPython magic to ensure Python compatibility.
-# '''CONNECT GOOGLE DRIVE'''
-# from google.colab import drive
-# drive.mount('/content/drive', force_remount=False)
-# import sys
-# sys.path.append('/content/drive/MyDrive/Colab_Notebooks')
-# %cd /content/drive/MyDrive/Colab_Notebooks
-# from func_pfm import read_pfm
 
 class TrainSetLoader(Dataset):
     def __init__(self, config):
@@ -35,11 +27,12 @@ class TrainSetLoader(Dataset):
         self.trainset_dir = config.trainset_dir
         self.source_files = sorted(os.listdir(self.trainset_dir))
         self.angRes = config.angRes
+        self.patch_size = config.patch_size
         self.scene_idx = []
 
         no_reflection_idx = [0, 1, 2, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14]
         with_reflection_idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-        for i in range(80):
+        for i in range(40):
             self.scene_idx += no_reflection_idx
         '''for i in range(20):
             self.scene_idx += with_reflection_idx'''
@@ -60,11 +53,11 @@ class TrainSetLoader(Dataset):
             lf[i // 9, i % 9, :, :, :] = SAI
         disp_path = self.trainset_dir + scene_name + '/gt_disp_lowres.pfm'
         mask_path = self.trainset_dir + scene_name + '/valid_mask.png'
-        dispGT[:, :] = np.float16(read_pfm(disp_path))
+        dispGT[:, :] = np.float32(read_pfm(disp_path))
         mask_rgb = imageio.imread(mask_path)
         mask = np.float32(mask_rgb[:, :, 1] > 0)
 
-        lf, dispGT = DataAugmentation(lf, dispGT)
+        lf, dispGT = DataAugmentation(lf, dispGT, self.patch_size)
         # lf.shape = (u v h w)
         # disp.shape = (h w)
         lf_temp = rearrange(lf, 'u v h w -> (u h) (v w)', u = self.angRes, v = self.angRes)
@@ -120,7 +113,7 @@ class AllSetLoader(Dataset):
         return self.length
         
 
-def DataAugmentation(lf, disp):
+def DataAugmentation(lf, disp, patch_size):
     # lf.shape = (u v h w c), c = RGB
     # disp.shape = (h w)
     lf = np.reshape(lf, (81, 512, 512, 3))
@@ -129,79 +122,90 @@ def DataAugmentation(lf, disp):
     # lf_Aug1.shape = ((u v) h w)
     lf_Aug2, disp_Aug1 = ScaleAugmentation(lf_Aug1, disp)
     lf_Aug3, disp_Aug2 = OrientationAugmentation(lf_Aug2, disp_Aug1)
+    lf_Aug4, disp_Aug3 = RandomCrop(lf_Aug3, disp_Aug2, patch_size)
 
-    lf_Aug3 = np.reshape(lf_Aug3, (9, 9, 512, 512))
-    return lf_Aug3, disp_Aug2
+    lf_Aug4 = np.reshape(lf_Aug4, (9, 9, patch_size, patch_size))
+    return lf_Aug4, disp_Aug3
 
 
 def IlluminanceAugmentation(lf):
     # lf.shape = ((u v) h w c), c = RGB
-    rand1 = np.random.randint(-100, 100)
-    rand2 = np.random.randint(-50, 50)
-    rand3 = np.random.uniform(0.0, 1.0)
-    rand4 = np.random.uniform(0.0, 0.05*255)
+    rand_params = [np.random.randint(-100, 100), 
+                   np.random.randint(-50, 50), 
+                   np.random.uniform(0.0, 1.0), 
+                   np.random.uniform(0.0, 0.05 * 255)]
+
     seq = iaa.Sequential([
-        iaa.AddToBrightness(rand1),
-        iaa.AddToHue(rand2),
-        iaa.Grayscale(alpha = rand3),
-        iaa.AdditiveGaussianNoise(loc = 0, scale = rand4, per_channel = False),
-        ])
-    lf_Aug = seq(images=lf)
+        iaa.AddToBrightness(rand_params[0]),
+        iaa.AddToHue(rand_params[1]),
+        iaa.Grayscale(alpha = rand_params[2]),
+        iaa.AdditiveGaussianNoise(loc = 0, scale = rand_params[3], per_channel = False),
+    ])
+
+    lf_Aug = seq(images = lf)
 
     randRGB = 0.05 + np.random.rand(3)
-    randRGB = randRGB / np.sum(randRGB)
-    lf_Gray = randRGB[0] * lf_Aug[:, :, :, 0] + randRGB[1] * lf_Aug[:, :, :, 1] + randRGB[2] * lf_Aug[:, :, :, 2]
+    randRGB /= np.sum(randRGB)  # Normalize
+    lf_Gray = np.dot(lf_Aug, randRGB)
 
-    lf_Gray = np.squeeze(lf_Gray)
-    lf_Gray = np.clip(lf_Gray, 0, 255)
-    # lf_Gray.shape = ((u v) h w)
+    lf_Gray = np.clip(lf_Gray, 0, 255).astype(np.uint8)
+
     return lf_Gray
 
 
 def ScaleAugmentation(lf, disp):
-    # lf.shape = ((u v) h w)
-    # disp.shape = (h w)
-    rand1 = np.random.uniform(0.0, 3.0)
-    percent = 0
-    scale = 0
-    if rand1 < 1.5:
-        percent = 0
+    # lf.shape = ((u v) h w), disp.shape = (h w)
+    
+    rand_scale = np.random.uniform(0.0, 3.0)
+    if rand_scale < 1.5:
         scale = 1
-    elif rand1 < 2.5:
-        percent = 0.25
+    elif rand_scale < 2.5:
         scale = 2
     else:
-        percent = 1/3
         scale = 3
-    # percent = (scale - 1) / (2 * scale)
+    percent = (scale - 1) / (2 * scale)
+
     seq = iaa.Sequential([iaa.Crop(percent = percent)])
 
     lf_Aug = seq(images = lf)
-    disp_Aug = seq(image = disp)
+    disp_Aug = seq(images = disp)
+
     disp_Aug /= scale
+
     return lf_Aug, disp_Aug
 
 
 def OrientationAugmentation(lf, disp):
-    # lf.shape = ((u v) h w)
-    # disp.shape = (h w)
+    # lf.shape = ((u v) h w), disp.shape = (h w)
 
-    flipLR = iaa.Fliplr(p = 1)
-    flipUD = iaa.Flipud(p = 1)
-    rotate_1 = iaa.Rotate(rotate = 90)
-    rotate_2 = iaa.Rotate(rotate = -90)
+    rand1, rand2, rand3 = np.random.rand(3)
 
-    rands = [np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0)]
-    if rands[0] > 0.5:
-        lf = flipLR(images = lf)
-        disp = flipLR(image = disp)
-    if rands[1] > 0.5:
-        lf = flipUD(images = lf)
-        disp = flipUD(image = disp)
-    if rands[2] > 0.75:
-        lf = rotate_1(images = lf)
-        disp = rotate_1(image = disp)
-    elif rands[2] > 0.5:
-        lf = rotate_2(images = lf)
-        disp = rotate_2(image = disp)
+    aug_list = []
+    if rand1 > 0.5:
+        aug_list.append(iaa.Fliplr(p = 1))
+    if rand2 > 0.5:
+        aug_list.append(iaa.Flipud(p = 1))
+    if rand3 > 0.75:
+        aug_list.append(iaa.Rotate(rotate = 90))
+    elif rand3 > 0.5:
+        aug_list.append(iaa.Rotate(rotate = -90))
+
+    if aug_list:
+        seq = iaa.Sequential(aug_list)
+        lf = seq(images = lf)
+        disp = seq(images = disp)
+
     return lf, disp
+
+
+def RandomCrop(lf, disp, patch_size):
+    # lf.shape = ((u v) h w), disp.shape = (h w)
+    _, h, w = lf.shape
+
+    h_crop = np.random.randint(0, h - patch_size)
+    w_crop = np.random.randint(0, w - patch_size)
+    lf_crop = lf[:, h_crop : h_crop + patch_size, w_crop : w_crop + patch_size]
+    disp_crop = disp[h_crop : h_crop + patch_size, w_crop : w_crop + patch_size]
+    
+    # lf.shape = ((u v) h w), disp.shape = (h w), h = w = patch_size
+    return lf_crop, disp_crop

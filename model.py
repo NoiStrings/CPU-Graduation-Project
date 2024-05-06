@@ -32,7 +32,7 @@ class Net(nn.Module):
         self.device = config.device
         self.feature_extracion = Feature_Extraction()
         self.mask_generator = Mask_Generator(config)
-        self.cost_constructor = Cost_Constructor(config, channels_in = 4, channels_out = 512)
+        self.cost_constructor = Cost_Constructor(config, channels_in = 8, channels_out = 512)
         self.cost_aggregator = Cost_Aggregator(config, channels_in = 512)
     def forward(self, lf, dispGT = None):
         # lf.shape = (b c u v h w)
@@ -41,7 +41,7 @@ class Net(nn.Module):
         _, _, u, v, h, w = lf.shape
 
         feature_map = self.feature_extracion(lf)
-        # feature_map.shape = (b c (u v) h w), c = 4
+        # feature_map.shape = (b c (u v) h w), c = 8
 
         if dispGT is not None:
             mask = self.mask_generator(lf, dispGT)
@@ -64,22 +64,22 @@ class Feature_Extraction(nn.Module):
     def __init__(self):
         super(Feature_Extraction, self).__init__()
         self.initial_extraction = nn.Sequential(
-            nn.Conv3d(1, 8, kernel_size = (1,3,3),
+            nn.Conv3d(1, 16, kernel_size = (1,3,3),
                       stride = 1, padding = (0, 1, 1), bias = False),
-            nn.BatchNorm3d(8)
+            nn.BatchNorm3d(16)
             )
         self.deep_extraction = nn.Sequential(
-            ResBlock(8), ResBlock(8),
-            ResBlock(8), ResBlock(8),
-            ResBlock(8), ResBlock(8),
-            nn.Conv3d(8, 8, kernel_size = (1, 3, 3),
+            ResBlock(16), ResBlock(16),
+            ResBlock(16), ResBlock(16),
+            ResBlock(16), ResBlock(16),
+            nn.Conv3d(16, 16, kernel_size = (1, 3, 3),
                       stride = 1, padding = (0, 1, 1), bias = False),
-            nn.BatchNorm3d(8), nn.LeakyReLU(0.1, inplace = True),
-            nn.Conv3d(8, 8, kernel_size = (1, 3, 3),
+            nn.BatchNorm3d(16), nn.LeakyReLU(0.1, inplace = True),
+            nn.Conv3d(16, 16, kernel_size = (1, 3, 3),
                       stride = 1, padding = (0, 1, 1), bias = False),
-            nn.BatchNorm3d(8), nn.LeakyReLU(0.1, inplace = True)
+            nn.BatchNorm3d(16), nn.LeakyReLU(0.1, inplace = True)
             )
-        self.final_conv = nn.Conv3d(8, 4, kernel_size = (1, 3, 3),
+        self.final_conv = nn.Conv3d(16, 8, kernel_size = (1, 3, 3),
                                     stride = 1, padding = (0, 1, 1), bias = False)
     def forward(self, lf):
         # lf.shape = (b c u v h w), c = 1
@@ -87,7 +87,7 @@ class Feature_Extraction(nn.Module):
         feature_init = self.initial_extraction(lf)
         feature_deep = self.deep_extraction(feature_init)
         feature_out = self.final_conv(feature_deep)
-        # feature_out.shape = (b c (u v) h w), c = 4
+        # feature_out.shape = (b c (u v) h w), c = 8
         return feature_out
 
 class ResBlock(nn.Module):
@@ -158,7 +158,7 @@ class Cost_Constructor(nn.Module):
         self.modulator = Feature_Modulator(kernel_size = self.angRes,
                                            channels_in = channels_in, channels_out = channels_out)
     def forward(self, feature_map, mask):
-        # feature_map.shape = (b c (u v) h w), c = 4
+        # feature_map.shape = (b c (u v) h w), c = 8
         # mask.shape = (b c h w), c = 9 * 9
         bdr = (self.angRes // 2) * self.dispMax
         getPad = nn.ZeroPad2d((bdr, bdr, bdr, bdr))
@@ -192,13 +192,13 @@ class Feature_Modulator(nn.Module):
         super(Feature_Modulator, self).__init__()
         self.dilation_rate = dilation_rate
         self.kernel_size = kernel_size
-        self.maskUnfold = nn.Unfold(kernel_size=1, stride=1, dilation=1, padding=0)
+        self.maskUnfold = nn.Unfold(kernel_size = 1, stride = 1, dilation = 1, padding = 0)
         # self.getPatches = nn.Unfold(kernel_size=self.kernel_size, stride=1, dilation=self.dilation_rate)
         self.finalConv = nn.Conv2d(in_channels = channels_in * kernel_size * kernel_size,
                                    out_channels = channels_out,
-                                   kernel_size=1, stride=1, padding=0, bias=False, groups=channels_in)
+                                   kernel_size = 1, stride = 1, padding = 0, bias = False, groups = channels_in)
     def forward(self, feature_map, mask):
-        # feature_map.shape = (b c (u hp) (v wp)), c = 4, hp = h_padded, wp = w_padded
+        # feature_map.shape = (b c (u hp) (v wp)), c = 8, hp = h_padded, wp = w_padded
         # mask.shape = (b c h w), c = 9 * 9
         
         '''清缓存'''
@@ -211,13 +211,13 @@ class Feature_Modulator(nn.Module):
 
         angular_patches = getPatches(feature_map)
         mask_unfold = self.maskUnfold(mask)
-        # angular_patches.shape = (b (c k^2) l), c = 4, k = kernel_size = 9, l = num of areas covered by kernel = 512 * 512
+        # angular_patches.shape = (b (c k^2) l), c = 8, k = kernel_size = 9, l = num of areas covered by kernel = 512 * 512
         # mask_unfold.shape = (b (c k^2) l), c = 9 * 9, k = 1, l = 512 * 512
         angular_patches_modulated = angular_patches * mask_unfold.repeat(1, feature_map.shape[1], 1)
-        # angular_patches_modulated.shape = (b c l), c = 81 * 4, l = 512 * 512
+        # angular_patches_modulated.shape = (b c l), c = 81 * 8, l = 512 * 512
         patchFold = nn.Fold(output_size=(mask.shape[2], mask.shape[3]), kernel_size=1, stride=1)
         feature_map_modulated = patchFold(angular_patches_modulated)
-        # feature_map_modulated.shape = (b c h w), c = 81 * 4, h = w = 512
+        # feature_map_modulated.shape = (b c h w), c = 81 * 8, h = w = 512
 
         '''清缓存'''
         gc.collect()
