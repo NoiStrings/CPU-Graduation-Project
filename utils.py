@@ -30,12 +30,9 @@ class TrainSetLoader(Dataset):
         self.patch_size = config.patch_size
         self.scene_idx = []
 
-        no_reflection_idx = [0, 1, 2, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14]
-        with_reflection_idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-        for i in range(40):
-            self.scene_idx += no_reflection_idx
-        '''for i in range(20):
-            self.scene_idx += with_reflection_idx'''
+        scenes = [i for i in range(13)]
+        for i in range(30):
+            self.scene_idx += scenes
 
         self.length = len(self.scene_idx)
 
@@ -97,15 +94,21 @@ class AllSetLoader(Dataset):
         dispGT = np.zeros((512, 512), dtype = "float32")
 
         for i in range(9 * 9):
-            SAI_path = self.validset_dir + scene_name + '/input_Cam0{:0>2}.png'.format(i)
+            SAI_path = self.dataset_dir + scene_name + '/input_Cam0{:0>2}.png'.format(i)
             SAI = imageio.imread(SAI_path)
             lf[i // 9, i % 9, :, :, :] = SAI
-        disp_path = self.validset_dir + scene_name + '/gt_disp_lowres.pfm'
+        disp_path = self.dataset_dir + scene_name + '/gt_disp_lowres.pfm'
         dispGT[:, :] = np.float32(read_pfm(disp_path))
         
-        lf = np.mean(lf, axis = -1, keepdim = False) / 255
-        # lf.shape = (u v h w)
-        # dispGT.shape = (h w)
+        lf = np.mean(lf, axis = -1, keepdims = False) / 255
+        lf = rearrange(lf, 'u v h w -> (u h) (v w)', u = self.angRes, v = self.angRes)
+        lf = lf.astype('float32')
+        dispGT = dispGT.astype('float32')
+        lf = ToTensor()(lf.copy())
+        dispGT = ToTensor()(dispGT.copy())
+        lf = rearrange(lf, 'c (u h) (v w) -> c u v h w', u = self.angRes, v = self.angRes)
+        # lf.shape = (c u v h w), c = 1
+        # dispGT.shape = (c h w), c = 1
         
         return lf, dispGT
 

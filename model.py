@@ -273,7 +273,7 @@ class Cost_Aggregator(nn.Module):
         temp = self.conv_4(temp)
         attMap = self.conv_final(temp)
         # AttMap.shape = (b c d h w), c = 1, d = 9
-        attMap = attMap.squeeze() # dim c is squeezed
+        attMap = attMap.squeeze(1) # dim c is squeezed
         # AttMap.shape = (b c h w), c = d = num of candidate disp = 9
         disp = torch.zeros(attMap.shape).to(self.device)
         for disp_i in range(self.dispMin, self.dispMax + 1):
