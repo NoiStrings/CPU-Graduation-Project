@@ -205,26 +205,26 @@ class Feature_Modulator(nn.Module):
         gc.collect()
         torch.cuda.empty_cache()
         
-        getPatches = nn.Unfold(kernel_size=self.kernel_size, stride=1, dilation=self.dilation_rate)
-        # print("dila: ", self.dilation_rate)
-        # print("H: ", feature_map.shape[2])
+        getPatches = nn.Unfold(kernel_size=self.kernel_size, stride = 1, dilation = self.dilation_rate)
 
         angular_patches = getPatches(feature_map)
+        
         mask_unfold = self.maskUnfold(mask)
         # angular_patches.shape = (b (c k^2) l), c = 8, k = kernel_size = 9, l = num of areas covered by kernel = 512 * 512
         # mask_unfold.shape = (b (c k^2) l), c = 9 * 9, k = 1, l = 512 * 512
         angular_patches_modulated = angular_patches * mask_unfold.repeat(1, feature_map.shape[1], 1)
         # angular_patches_modulated.shape = (b c l), c = 81 * 8, l = 512 * 512
-        patchFold = nn.Fold(output_size=(mask.shape[2], mask.shape[3]), kernel_size=1, stride=1)
+        patchFold = nn.Fold(output_size = (mask.shape[2], mask.shape[3]), kernel_size = 1, stride = 1)
         feature_map_modulated = patchFold(angular_patches_modulated)
         # feature_map_modulated.shape = (b c h w), c = 81 * 8, h = w = 512
 
         '''清缓存'''
         gc.collect()
         torch.cuda.empty_cache()
-
+        
         cost = self.finalConv(feature_map_modulated)
         # cost.shape = (b c h w), c = 512
+        print(cost[0])
         return cost
 
 class Cost_Aggregator(nn.Module):

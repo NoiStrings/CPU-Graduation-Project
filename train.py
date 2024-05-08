@@ -28,17 +28,17 @@ def getConfig():
     config.trainset_dir = config.cwd + "/data/training/"
     config.validset_dir = config.cwd + "/data/validation/"
     config.testset_dir = config.cwd + "/data/test/"
-    config.load_pretrain = True
+    config.load_pretrain = False
     config.angRes = 9
     config.dispMin = -4
     config.dispMax = 4
     config.device = 'cuda:0'
-    config.lr = 0.0005
+    config.lr = 0.0001
     config.n_epochs = 60          # lr scheduler updating frequency
     config.max_epochs = 60
     config.batch_size = 16
     config.patch_size = 48
-    config.num_workers = 6          # num of used threads of DataLoader
+    config.num_workers = 8          # num of used threads of DataLoader
     config.gamma = 0.5              # lr scheduler decaying rate
     return config
 
@@ -60,7 +60,7 @@ def Train(config):
     
     Loss = torch.nn.L1Loss().to(config.device)
     Optimizer = torch.optim.Adam([params for params in NET.parameters() 
-                                  if paras.requires_grad == True], lr = config.lr)
+                                  if params.requires_grad == True], lr = config.lr)
     Scheduler = torch.optim.lr_scheduler.StepLR(Optimizer, 
                                                 step_size = config.n_epochs,
                                                 gamma = config.gamma)
@@ -97,18 +97,30 @@ def Train(config):
             # lfs.shape = (b u v h w)
             # dispGTs.shape = (b h w)
 
-            with autocast():                                   
-                dispPred = NET(lfs, dispGTs)
+            # with autocast():                                   
+            dispPred = NET(lfs, dispGTs)
                 # dispPred.shape = (b c h w), c = 1
-            
-                loss_i = Loss(dispPred.squeeze(), dispGTs.squeeze())
-                Optimizer.zero_grad()
-                loss_i.backward()
+                # ////////////////////////////////////////////////////////////////////////
+                # max_value1 = torch.max(dispPred[~torch.isinf(dispPred) & ~torch.isnan(dispPred)])  # 忽略inf和NaN
+                # min_value1 = torch.min(dispPred[~torch.isinf(dispPred) & ~torch.isnan(dispPred)])  # 忽略inf和NaN
+                # print("最大值:", max_value1.item())
+                # print("最小值:", min_value1.item())
+                # max_value2 = torch.max(dispGTs[~torch.isinf(dispGTs) & ~torch.isnan(dispGTs)])  # 忽略inf和NaN
+                # min_value2 = torch.min(dispGTs[~torch.isinf(dispGTs) & ~torch.isnan(dispGTs)])  # 忽略inf和NaN
+                # print("最大值:", max_value2.item())
+                # print("最小值:", min_value2.item())
+                # print(dispPred)
+                # ////////////////////////////////////////////////////////////////////////
+            loss_i = Loss(dispPred.squeeze(), dispGTs.squeeze())
+            Optimizer.zero_grad()
+            loss_i.backward()
                 
             Optimizer.step()
             num_iters += 1
             total_loss += loss_i.item()
-            
+            # //////////////////////////////////////////////////////////////////////////
+            print(loss_i.item())
+            # //////////////////////////////////////////////////////////////////////////
         loss_avg = total_loss / num_iters
         
         save_ckpt(NET, Optimizer, i_epoch)

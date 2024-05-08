@@ -41,8 +41,8 @@ class TrainSetLoader(Dataset):
         scene_name = self.source_files[scene_id]
 
         lf = np.zeros((9, 9, 512, 512, 3), dtype = "uint8")
-        dispGT = np.zeros((512, 512), dtype = "float32")
-        mask = np.zeros((512, 512), dtype = "float32")
+        dispGT = np.zeros((512, 512), dtype = float)
+        mask = np.zeros((512, 512), dtype = float)
 
         for i in range(9 * 9):
             SAI_path = self.trainset_dir + scene_name + '/input_Cam0{:0>2}.png'.format(i)
@@ -62,13 +62,30 @@ class TrainSetLoader(Dataset):
         
         data = lf_temp.astype('float32')
         label = dispGT.astype('float32')
+        data = data / 255
         data = ToTensor()(data.copy())
         label = ToTensor()(label.copy())
         
         data = rearrange(data, 'c (u h) (v w) -> c u v h w', u = self.angRes, v = self.angRes)
         # data.shape = (c u v h w), c = 1
         # label.shape = (c h w), c = 1
+        # /////////////////////////////////////////////////////////////
+        # 获取最大值和最小值
+        # max_value1 = torch.max(data[~torch.isinf(data) & ~torch.isnan(data)])  # 忽略inf和NaN
+        # min_value1 = torch.min(data[~torch.isinf(data) & ~torch.isnan(data)])  # 忽略inf和NaN
+        # max_value2 = torch.max(label[~torch.isinf(label) & ~torch.isnan(label)])  # 忽略inf和NaN
+        # min_value2 = torch.min(label[~torch.isinf(label) & ~torch.isnan(label)])  # 忽略inf和NaN
+        # 检查inf和NaN
+        # has_inf = torch.any(torch.isinf(data))
+        # has_nan = torch.any(torch.isnan(data))
 
+        # print("最大值:", max_value1.item())
+        # print("最小值:", min_value1.item())
+        # print("最大值:", max_value2.item())
+        # print("最小值:", min_value2.item())
+        # print("包含inf:", has_inf.item())
+        # print("包含NaN:", has_nan.item())
+        # /////////////////////////////////////////////////////////////
         return data, label
 
     def __len__(self):
