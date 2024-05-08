@@ -42,7 +42,6 @@ class Net(nn.Module):
 
         feature_map = self.feature_extracion(lf)
         # feature_map.shape = (b c (u v) h w), c = 8
-
         if dispGT is not None:
             mask = self.mask_generator(lf, dispGT)
             # mask.shape = (b c h w), c = 9 * 9
@@ -72,14 +71,15 @@ class Feature_Extraction(nn.Module):
             ResBlock(16), ResBlock(16),
             ResBlock(16), ResBlock(16),
             ResBlock(16), ResBlock(16),
+            ResBlock(16), ResBlock(16),
             nn.Conv3d(16, 16, kernel_size = (1, 3, 3),
                       stride = 1, padding = (0, 1, 1), bias = False),
             nn.BatchNorm3d(16), nn.LeakyReLU(0.1, inplace = True),
-            nn.Conv3d(16, 16, kernel_size = (1, 3, 3),
+            nn.Conv3d(16, 8, kernel_size = (1, 3, 3),
                       stride = 1, padding = (0, 1, 1), bias = False),
-            nn.BatchNorm3d(16), nn.LeakyReLU(0.1, inplace = True)
+            nn.BatchNorm3d(8), nn.LeakyReLU(0.1, inplace = True)
             )
-        self.final_conv = nn.Conv3d(16, 8, kernel_size = (1, 3, 3),
+        self.final_conv = nn.Conv3d(8, 8, kernel_size = (1, 3, 3),
                                     stride = 1, padding = (0, 1, 1), bias = False)
     def forward(self, lf):
         # lf.shape = (b c u v h w), c = 1
@@ -96,9 +96,12 @@ class ResBlock(nn.Module):
         self.numChannels = numChannels
         self.conv = nn.Sequential(
             nn.Conv3d(numChannels, numChannels, kernel_size = (1, 3, 3),
-                      stride = 1, padding = (0, 1, 1), bias = False),
+                      stride = 1, padding = (0, 1, 1)),
             nn.BatchNorm3d(numChannels),
-            nn.LeakyReLU(0.1, inplace = True)
+            nn.LeakyReLU(0.1, inplace = True),
+            nn.Conv3d(numChannels, numChannels, kernel_size = (1, 3, 3),
+                      stride = 1, padding = (0, 1, 1)),
+            nn.BatchNorm3d(numChannels),
             )
     def forward(self, feature_in):
         # feature_in.shape = (b c (u v) h w), c = 16
@@ -129,7 +132,6 @@ class Mask_Generator:
                     dv = i_v - center_v
                     view_warped = self.ViewWarp(lf, disp, view, x_base ,y_base, du, dv)
                 view_residual = abs(view_warped - view_center)
-                view_residual = (view_residual - view_residual.min()) / (view_residual.max() - view_residual.min())
                 views_residual.append(view_residual)
         mask = torch.cat(views_residual, dim=1)
         mask = (1 - mask) ** 2
@@ -201,7 +203,7 @@ class Feature_Modulator(nn.Module):
         # feature_map.shape = (b c (u hp) (v wp)), c = 8, hp = h_padded, wp = w_padded
         # mask.shape = (b c h w), c = 9 * 9
         
-        '''清缓存'''
+        
         gc.collect()
         torch.cuda.empty_cache()
         
@@ -217,16 +219,56 @@ class Feature_Modulator(nn.Module):
         patchFold = nn.Fold(output_size = (mask.shape[2], mask.shape[3]), kernel_size = 1, stride = 1)
         feature_map_modulated = patchFold(angular_patches_modulated)
         # feature_map_modulated.shape = (b c h w), c = 81 * 8, h = w = 512
-
-        '''清缓存'''
+        # print(feature_map_modulated[0])
+        
         gc.collect()
         torch.cuda.empty_cache()
         
         cost = self.finalConv(feature_map_modulated)
         # cost.shape = (b c h w), c = 512
-        print(cost[0])
+        # print(cost[0])
         return cost
+'''
+class Feature_Modulator(nn.Module):
+    def __init__(self, channels_in, channels_out, kernel_size):
+        super(Feature_Modulator, self).__init__()
+        self.kernel_size = kernel_size  # [9, 9]
+        self.stride = 1
+        self.dilation_rate = 1
+        self.flatten = nn.Unfold(kernel_size=1, stride=1, dilation=1, padding=0)
+        # nn.Unfold(卷积核大小=1, 步长=1, 膨胀率=1, 无填充)
+        # 将卷积核所能覆盖到的每一片区域（可重叠）展开为一维向量，并将这些一维向量组合成新的二维张量
+        # [b, c, h, w] -> [b, c*k*k, l] 其中k*k为卷积核大小，l为卷积核所能覆盖到的区域总数
+        self.fuse = nn.Conv2d(channels_in * kernel_size * kernel_size, channels_out,
+                              kernel_size=1, stride=1, padding=0, bias=False, groups=channels_in)
 
+    def forward(self, x, mask):
+        # x: 所有视角拼接成的整体图像的特征图（已裁掉无法匹配的边缘部分）
+        # mask.shape = [b, u*v, h, w]
+        mask_flatten = self.flatten(mask)
+
+        gc.collect()
+        torch.cuda.empty_cache()
+        # 将掩膜展平：[b, u*v, h, w] -> [b, u*v, h*w]
+        
+        Unfold = nn.Unfold(kernel_size=self.kernel_size, stride=self.stride, dilation=self.dilation_rate)
+        x_unfold = Unfold(x)
+        
+        # 将整体特征图按照给定扩张率构建angular patch
+        # x_unfold为给定扩张率下可构建的所有angular patch的集合
+        x_unfold_modulated = x_unfold * mask_flatten.repeat(1, x.shape[1], 1)
+        # 用掩膜对所有angular_patch进行调制
+        Fold = nn.Fold(output_size=(mask.shape[2], mask.shape[3]), kernel_size=1, stride=1)
+        x_modulated = Fold(x_unfold_modulated)
+        # print(x_modulated)
+        # 将经调制的angular_patch复原，生成经调制的特征图
+        # 至此，特征图中各视角的对应像素，都经过了mask中相对应的权重的调制
+        out = self.fuse(x_modulated)
+        # 对经调制的特征图进行卷积，得到当前扩张率下的匹配成本
+        # out的本质是经过了mask调制后的特征图
+        # print(out)
+        return out
+    '''
 class Cost_Aggregator(nn.Module):
     def __init__(self, config, channels_in):
         super(Cost_Aggregator, self).__init__()

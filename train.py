@@ -9,7 +9,7 @@ Created on Wed Apr 17 19:50:57 2024
 import torch
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
-from torch.cuda.amp import autocast
+# from torch.cuda.amp import autocast
 import numpy as np
 from easydict import EasyDict
 from tqdm import tqdm
@@ -28,7 +28,7 @@ def getConfig():
     config.trainset_dir = config.cwd + "/data/training/"
     config.validset_dir = config.cwd + "/data/validation/"
     config.testset_dir = config.cwd + "/data/test/"
-    config.load_pretrain = False
+    config.load_pretrain = True
     config.angRes = 9
     config.dispMin = -4
     config.dispMax = 4
@@ -38,7 +38,7 @@ def getConfig():
     config.max_epochs = 60
     config.batch_size = 16
     config.patch_size = 48
-    config.num_workers = 8          # num of used threads of DataLoader
+    config.num_workers = 6          # num of used threads of DataLoader
     config.gamma = 0.5              # lr scheduler decaying rate
     return config
 
@@ -97,8 +97,8 @@ def Train(config):
             # lfs.shape = (b u v h w)
             # dispGTs.shape = (b h w)
 
-            # with autocast():                                   
-            dispPred = NET(lfs, dispGTs)
+            with autocast():                                   
+                dispPred = NET(lfs, dispGTs)
                 # dispPred.shape = (b c h w), c = 1
                 # ////////////////////////////////////////////////////////////////////////
                 # max_value1 = torch.max(dispPred[~torch.isinf(dispPred) & ~torch.isnan(dispPred)])  # 忽略inf和NaN
@@ -111,15 +111,15 @@ def Train(config):
                 # print("最小值:", min_value2.item())
                 # print(dispPred)
                 # ////////////////////////////////////////////////////////////////////////
-            loss_i = Loss(dispPred.squeeze(), dispGTs.squeeze())
-            Optimizer.zero_grad()
-            loss_i.backward()
+                loss_i = Loss(dispPred.squeeze(), dispGTs.squeeze())
+                Optimizer.zero_grad()
+                loss_i.backward()
+                Optimizer.step()
                 
-            Optimizer.step()
             num_iters += 1
             total_loss += loss_i.item()
             # //////////////////////////////////////////////////////////////////////////
-            print(loss_i.item())
+            # print(loss_i.item())
             # //////////////////////////////////////////////////////////////////////////
         loss_avg = total_loss / num_iters
         

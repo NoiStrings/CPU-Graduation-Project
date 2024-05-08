@@ -15,6 +15,7 @@ from torch.utils.data.dataset import Dataset
 from torchvision.transforms import ToTensor
 from einops import rearrange
 import os
+import random
 import numpy as np
 import imageio
 import imgaug.augmenters as iaa
@@ -51,9 +52,10 @@ class TrainSetLoader(Dataset):
         disp_path = self.trainset_dir + scene_name + '/gt_disp_lowres.pfm'
         mask_path = self.trainset_dir + scene_name + '/valid_mask.png'
         dispGT[:, :] = np.float32(read_pfm(disp_path))
+        dispGT = dispGT.astype('float32')
         mask_rgb = imageio.imread(mask_path)
         mask = np.float32(mask_rgb[:, :, 1] > 0)
-
+        
         lf, dispGT = DataAugmentation(lf, dispGT, self.patch_size)
         # lf.shape = (u v h w)
         # disp.shape = (h w)
@@ -108,7 +110,7 @@ class AllSetLoader(Dataset):
         scene_name = self.source_files[idx]
         
         lf = np.zeros((9, 9, 512, 512, 3), dtype = "uint8")
-        dispGT = np.zeros((512, 512), dtype = "float32")
+        dispGT = np.zeros((512, 512), dtype = float)
 
         for i in range(9 * 9):
             SAI_path = self.dataset_dir + scene_name + '/input_Cam0{:0>2}.png'.format(i)
@@ -144,7 +146,7 @@ def DataAugmentation(lf, disp, patch_size):
     lf_Aug3, disp_Aug2 = OrientationAugmentation(lf_Aug2, disp_Aug1)
     lf_Aug4, disp_Aug3 = RandomCrop(lf_Aug3, disp_Aug2, patch_size)
 
-    lf_Aug4 = np.reshape(lf_Aug4, (9, 9, patch_size, patch_size))
+    lf_Aug4 = rearrange(lf_Aug4, '(u v) h w -> u v h w', u=9, v=9)
     return lf_Aug4, disp_Aug3
 
 
@@ -171,6 +173,33 @@ def IlluminanceAugmentation(lf):
     lf_Gray = np.clip(lf_Gray, 0, 255).astype(np.uint8)
 
     return lf_Gray
+def IlluminanceAugmentation1(data):
+    data = np.reshape(data, (9, 9, 512, 512, 3))
+    # 照明增强处理：包括色彩变换、亮度调整、加入随机噪声
+    # 用于提高数据多样性与模型鲁棒性
+    rand_3color = 0.05 + np.random.rand(3)
+    # 随机生成三元组，值域[0.05, 1.05)
+    # 代表RGB三色的混合权重，用于根据彩图生成灰度图
+    rand_3color = rand_3color / np.sum(rand_3color)
+    # 归一化
+    R = rand_3color[0]
+    G = rand_3color[1]
+    B = rand_3color[2]
+    data_gray = np.squeeze(R * data[:, :, :, :, 0] + G * data[:, :, :, :, 1] + B * data[:, :, :, :, 2])
+    # 将RGB三色按随机权重加和，得到灰度图
+    gray_rand = 0.4 * np.random.rand() + 0.8
+    # 随机生成亮度，值域[0.8, 1.2)
+    data_gray = pow(data_gray, gray_rand)
+    # 通过幂运算随机调整亮度
+    noise_rand = np.random.randint(0, 10)
+    if noise_rand == 0:
+        # 随机生成0到9的一个整数
+        # 若为0（10%概率），则添加随机噪声
+        gauss = np.random.normal(0.0, np.random.uniform() * np.sqrt(0.2), data_gray.shape)
+        # 生成平均数为0，标准差随机，与灰度图shape相同的，符合正态分布的随机噪声
+        data_gray = np.clip(data_gray + gauss, 0.0, 1.0)
+        # 将灰度图的各像素值限制在0到1之间（超出边界的，直接用边界值替换）
+    return data_gray
 
 
 def ScaleAugmentation(lf, disp):
@@ -193,6 +222,24 @@ def ScaleAugmentation(lf, disp):
     disp_Aug /= scale
 
     return lf_Aug, disp_Aug
+def ScaleAugmentation1(lf, dispGT):
+    kk = np.random.randint(17)
+    if (kk < 8):
+        scale = 1
+    elif (kk < 14):
+        scale = 2 
+        # 分辨率缩放至原来的1/2
+    elif (kk < 17):
+        scale = 3
+        # 分辨率缩放至原来的1/3
+    out_lf = lf[:, :, 0::scale, 0::scale]
+    out_disp = dispGT[0::scale, 0::scale]
+    # 每scale个像素采样一次
+    # 下采样，会导致图像分辨率（尺寸）降低
+    out_disp[:, :] = out_disp[:, :] / scale
+    # 图像缩放后，各像素的原始视差值也要按相同比例缩放
+
+    return out_lf, out_disp
 
 
 def OrientationAugmentation(lf, disp):
@@ -216,7 +263,22 @@ def OrientationAugmentation(lf, disp):
         disp = seq(images = disp)
 
     return lf, disp
-
+def OrientationAugmentation1(data, dispGT):
+    data = rearrange(data, 'u v h w -> (u h) (v w)', u=9, v=9)
+    if random.random() < 0.5:  # flip along W-V direction
+        # 水平翻转
+        data = data[:, ::-1]
+        dispGT = dispGT[:, ::-1]
+    if random.random() < 0.5:  # flip along H-U direction
+        # 垂直翻转
+        data = data[::-1, :]
+        dispGT = dispGT[::-1, :]
+    if random.random() < 0.5: # transpose between U-V and H-W
+        # 旋转90度
+        data = data.transpose(1, 0)
+        dispGT = dispGT.transpose(1, 0)
+    data = rearrange(data, '(u h) (v w) -> u v h w', u=9, v=9)
+    return data, dispGT
 
 def RandomCrop(lf, disp, patch_size):
     # lf.shape = ((u v) h w), disp.shape = (h w)
