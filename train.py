@@ -9,7 +9,7 @@ Created on Wed Apr 17 19:50:57 2024
 import torch
 from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
-# from torch.cuda.amp import autocast
+from torch.cuda.amp import autocast
 import numpy as np
 from easydict import EasyDict
 from tqdm import tqdm
@@ -76,15 +76,17 @@ def Train(config):
             ckpt = load_ckpt(config, model_path)
             NET.load_state_dict(ckpt['state_dict'], strict = False)
             Optimizer.load_state_dict(ckpt['optimizer'])
-            start_epoch = ckpt['epoch']
+            start_epoch = ckpt['epoch'] + 1
             print("Notification: Pretrained Model Loaded.")
         else:
             print("Notification: No Pretrained Model Available.")
     
-    '''///Train///'''
-    TrainSet = TrainSetLoader(config)
+    if (start_epoch - 1) % 3 == 2:    
+            Valid(NET, config, start_epoch - 1)
     
+    '''///Train///'''
     for i_epoch in range(start_epoch, config.max_epochs):
+        TrainSet = TrainSetLoader(config)
         TrainDataLoader = DataLoader(dataset = TrainSet, num_workers = config.num_workers,
                                      batch_size = config.batch_size, shuffle = True)   
         total_loss = 0
@@ -100,17 +102,6 @@ def Train(config):
             with autocast():                                   
                 dispPred = NET(lfs, dispGTs)
                 # dispPred.shape = (b c h w), c = 1
-                # ////////////////////////////////////////////////////////////////////////
-                # max_value1 = torch.max(dispPred[~torch.isinf(dispPred) & ~torch.isnan(dispPred)])  # 忽略inf和NaN
-                # min_value1 = torch.min(dispPred[~torch.isinf(dispPred) & ~torch.isnan(dispPred)])  # 忽略inf和NaN
-                # print("最大值:", max_value1.item())
-                # print("最小值:", min_value1.item())
-                # max_value2 = torch.max(dispGTs[~torch.isinf(dispGTs) & ~torch.isnan(dispGTs)])  # 忽略inf和NaN
-                # min_value2 = torch.min(dispGTs[~torch.isinf(dispGTs) & ~torch.isnan(dispGTs)])  # 忽略inf和NaN
-                # print("最大值:", max_value2.item())
-                # print("最小值:", min_value2.item())
-                # print(dispPred)
-                # ////////////////////////////////////////////////////////////////////////
                 loss_i = Loss(dispPred.squeeze(), dispGTs.squeeze())
                 Optimizer.zero_grad()
                 loss_i.backward()
@@ -118,9 +109,7 @@ def Train(config):
                 
             num_iters += 1
             total_loss += loss_i.item()
-            # //////////////////////////////////////////////////////////////////////////
-            # print(loss_i.item())
-            # //////////////////////////////////////////////////////////////////////////
+            
         loss_avg = total_loss / num_iters
         
         save_ckpt(NET, Optimizer, i_epoch)
