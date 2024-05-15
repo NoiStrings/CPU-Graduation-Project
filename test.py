@@ -26,9 +26,6 @@ def getConfig():
     config.dispMin = -4
     config.dispMax = 4
     config.device = 'cuda:0'
-    config.batch_size = 16
-    config.patch_size = 48
-    config.num_workers = 6
     return config
 
 def Test(config):
@@ -38,7 +35,7 @@ def Test(config):
     ckpt = load_ckpt(config)
     NET.load_state_dict(ckpt['state_dict'])
 
-    TestSet = AllSetLoader(config, kind = 'valid')
+    TestSet = AllSetLoader(config, kind = 'test')
     TestDataLoader = DataLoader(dataset = TestSet, batch_size = 1, shuffle = False)  
         
     outputs = []
@@ -49,12 +46,15 @@ def Test(config):
             lf = lf.to(config.device)
             dispPred = NET(lf)
             
-            dispPred = dispPred.cpu().numpy()
+            dispPred = dispPred.cpu().squeeze().numpy()
             outputs.append(dispPred)
             
     outputs = np.stack(outputs)
     np.save('./test_outputs/outputs.npy', outputs)
 
+def load_ckpt(config, filename = 'models/OACC-Net.pth.tar'):
+    ckpt = torch.load(filename, map_location = {'cuda:0': config.device})
+    return ckpt
             
 if __name__ == '__main__':
     config = getConfig()
@@ -62,8 +62,4 @@ if __name__ == '__main__':
         os.makedirs("test_outputs")
     Test(config)
 
-    
-
-def load_ckpt(config, filename = 'models/OACC-Net.pth.tar'):
-    ckpt = torch.load(filename, map_location = {'cuda:0': config.device})
-    return ckpt
+   

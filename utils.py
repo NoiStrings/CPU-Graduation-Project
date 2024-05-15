@@ -31,7 +31,7 @@ class TrainSetLoader(Dataset):
         self.scene_idx = []
 
         scenes = [i for i in range(13)]
-        for i in range(60):
+        for i in range(100):
             self.scene_idx += scenes
 
         self.length = len(self.scene_idx)
@@ -146,10 +146,10 @@ def DataAugmentation(lf, disp, patch_size):
 
 def IlluminanceAugmentation(lf):
     # lf.shape = ((u v) h w c), c = RGB
-    rand_params = [np.random.randint(-100, 100), 
-                   np.random.randint(-50, 50), 
+    rand_params = [np.random.randint(-10, 10), 
+                   np.random.randint(-10, 10), 
                    np.random.uniform(0.0, 1.0), 
-                   np.random.uniform(0.0, 0.05 * 255)]
+                   np.random.uniform(0.0, 0.04 * 255)]
 
     seq = iaa.Sequential([
         iaa.AddToBrightness(rand_params[0]),
@@ -232,7 +232,7 @@ def ScaleAugmentation1(lf, dispGT):
     elif (kk < 17):
         scale = 3
         # 分辨率缩放至原来的1/3
-    out_lf = lf[:, :, 0::scale, 0::scale]
+    out_lf = lf[:, 0::scale, 0::scale]
     out_disp = dispGT[0::scale, 0::scale]
     # 每scale个像素采样一次
     # 下采样，会导致图像分辨率（尺寸）降低

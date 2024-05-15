@@ -35,9 +35,9 @@ def getConfig():
     config.dispMax = 4
     config.device = 'cuda:0'
     config.lr = 0.0001
-    config.n_epochs = 60          # lr scheduler updating frequency
-    config.max_epochs = 60
-    config.batch_size = 16
+    config.n_epochs = 10          # lr scheduler updating frequency
+    config.max_epochs = 10
+    config.batch_size = 8
     config.patch_size = 48
     config.num_workers = 6          # num of used threads of DataLoader
     config.gamma = 0.5              # lr scheduler decaying rate
@@ -104,7 +104,7 @@ def Train(config):
             
         loss_avg = total_loss / num_iters
         
-        save_ckpt(NET, Optimizer, i_epoch + 1)
+        save_ckpt(NET, i_epoch + 1)
             
         log_info = "[Train] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {:.5f}".format(i_epoch, loss_avg)
         with open("logs/train_log.txt", "a") as f:
@@ -113,7 +113,7 @@ def Train(config):
         print(log_info)  
           
         if i_epoch % 10 == 9: 
-            save_ckpt(NET, Optimizer, i_epoch, 'models/OACC-Net{}.pth.tar'.format(i_epoch + 1))
+            save_ckpt(NET, i_epoch, 'models/OACC-Net{}.pth.tar'.format(i_epoch + 1))
             Valid(NET, config, i_epoch + 1)
 
         Scheduler.step()
@@ -140,9 +140,9 @@ def Valid(NET, config, i_epoch):
     
     "///Validation///"
     with torch.no_grad():
-        for i_iter, (lf, dispGT) in tqdm(enumerate(ValidDataLoader), 
-                                           total = len(ValidDataLoader)):
+        for i_iter, (lf, dispGT) in enumerate(ValidDataLoader):
             lf = lf.to(config.device)
+            dispGT = dispGT.to(config.device)
             # lf.shape = (b u v h w)
             # dispGT.shape = (b h w)
             
@@ -162,7 +162,7 @@ def Valid(NET, config, i_epoch):
             
             outputs.append(dispPred)
             
-            log_info = "[Valid] " + time.ctime()[4:-5] + "\t scene: {:<11} | loss: {:.5f} | bpr: {:.5f}".format(scene_list[i_iter], loss_i, bpr)
+            log_info = "[Valid] " + time.ctime()[4:-5] + "\t scene: {:<11} | loss: {:.5f} | bpr: {:.5f}".format(scene_list[i_iter], loss_i * 100, bpr)
             with open("logs/valid_log.txt", "a") as f:
                 f.write(log_info)
                 f.write("\n")
@@ -174,7 +174,7 @@ def Valid(NET, config, i_epoch):
     return
 
 
-def save_ckpt(model, optimizer, epoch, filename = 'models/OACC-Net.pth.tar'):
+def save_ckpt(model, epoch, filename = 'models/OACC-Net.pth.tar'):
     state = {
         'epoch': epoch,
         'state_dict': model.state_dict(),
