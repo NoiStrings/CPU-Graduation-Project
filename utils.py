@@ -82,6 +82,7 @@ class AllSetLoader(Dataset):
         super(AllSetLoader, self).__init__()
         self.dataset_dir = None
         self.patch_size = 256
+        self.kind = kind
         if kind == "valid":
             self.dataset_dir = config.validset_dir
         elif kind == "test":
@@ -96,16 +97,20 @@ class AllSetLoader(Dataset):
         lf = np.zeros((9, 9, 512, 512, 3), dtype = "uint8")
         dispGT = np.zeros((512, 512), dtype = float)
 
+
         for i in range(9 * 9):
             SAI_path = self.dataset_dir + scene_name + '/input_Cam0{:0>2}.png'.format(i)
             SAI = imageio.imread(SAI_path)
             lf[i // 9, i % 9, :, :, :] = SAI
-        disp_path = self.dataset_dir + scene_name + '/gt_disp_lowres.pfm'
-        dispGT[:, :] = np.float32(read_pfm(disp_path))
+            
+        if self.kind == 'valid':
+            disp_path = self.dataset_dir + scene_name + '/gt_disp_lowres.pfm'
+            dispGT[:, :] = np.float32(read_pfm(disp_path))
+            dispGT = dispGT.astype('float32')
+
         
         lf = np.mean(lf, axis = -1, keepdims = False) / 255
         lf = lf.astype('float32')
-        dispGT = dispGT.astype('float32')
         lf = rearrange(lf, 'u v h w -> (u v) h w', u = self.angRes, v = self.angRes)
         
         lf_crop, disp_crop = RandomCrop(lf, dispGT, self.patch_size)
@@ -150,7 +155,9 @@ def IlluminanceAugmentation(lf):
         iaa.AddToBrightness(rand_params[0]),
         iaa.AddToHue(rand_params[1]),
         iaa.Grayscale(alpha = rand_params[2]),
-        iaa.AdditiveGaussianNoise(loc = 0, scale = rand_params[3], per_channel = False),
+        iaa.AdditiveGaussianNoise(loc = 0, 
+                                  scale = rand_params[3], 
+                                  per_channel = False),
     ])
 
     lf_Aug = seq(images = lf)
@@ -162,6 +169,7 @@ def IlluminanceAugmentation(lf):
     lf_Gray = np.clip(lf_Gray, 0, 255).astype(np.uint8)
 
     return lf_Gray
+
 def IlluminanceAugmentation1(data):
     data = np.reshape(data, (9, 9, 512, 512, 3))
     # 照明增强处理：包括色彩变换、亮度调整、加入随机噪声
@@ -211,6 +219,9 @@ def ScaleAugmentation(lf, disp):
     disp_Aug /= scale
 
     return lf_Aug, disp_Aug
+
+
+
 def ScaleAugmentation1(lf, dispGT):
     kk = np.random.randint(17)
     if (kk < 8):
@@ -252,6 +263,9 @@ def OrientationAugmentation(lf, disp):
         disp = seq(images = disp)
 
     return lf, disp
+
+
+
 def OrientationAugmentation1(data, dispGT):
     data = rearrange(data, 'u v h w -> (u h) (v w)', u=9, v=9)
     if random.random() < 0.5:  # flip along W-V direction
@@ -269,6 +283,8 @@ def OrientationAugmentation1(data, dispGT):
     data = rearrange(data, '(u h) (v w) -> u v h w', u=9, v=9)
     return data, dispGT
 
+
+
 def RandomCrop(lf, disp, patch_size):
     # lf.shape = ((u v) h w), disp.shape = (h w)
     _, h, w = lf.shape
@@ -280,3 +296,5 @@ def RandomCrop(lf, disp, patch_size):
     
     # lf.shape = ((u v) h w), disp.shape = (h w), h = w = patch_size
     return lf_crop, disp_crop
+
+

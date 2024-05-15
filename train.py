@@ -24,6 +24,7 @@ def getConfig():
 
     config.cwd = os.getcwd()
     config.save_path = config.cwd + "/models/"
+    config.model_path = config.cwd + "/models/OACC-Net.pth.tar"
     config.log_path = config.cwd + "/logs/"
     config.trainset_dir = config.cwd + "/data/training/"
     config.validset_dir = config.cwd + "/data/validation/"
@@ -66,23 +67,14 @@ def Train(config):
                                                 gamma = config.gamma)
     
     if config.load_pretrain:
-        models = os.listdir(config.save_path)
-        model_path = ''
-        if models:
-            models.sort()
-            model_name = models[-1]
-            model_path = config.save_path + model_name
-        if os.path.isfile(model_path):
-            ckpt = load_ckpt(config, model_path)
+        if os.path.isfile(config.model_path):
+            ckpt = load_ckpt(config, config.model_path)
             NET.load_state_dict(ckpt['state_dict'], strict = False)
-            Optimizer.load_state_dict(ckpt['optimizer'])
-            start_epoch = ckpt['epoch'] + 1
+            start_epoch = ckpt['epoch']
             print("Notification: Pretrained Model Loaded.")
         else:
             print("Notification: No Pretrained Model Available.")
     
-    if (start_epoch - 1) % 3 == 2:    
-            Valid(NET, config, start_epoch - 1)
     
     '''///Train///'''
     for i_epoch in range(start_epoch, config.max_epochs):
@@ -112,7 +104,7 @@ def Train(config):
             
         loss_avg = total_loss / num_iters
         
-        save_ckpt(NET, Optimizer, i_epoch)
+        save_ckpt(NET, Optimizer, i_epoch + 1)
             
         log_info = "[Train] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {:.5f}".format(i_epoch, loss_avg)
         with open("logs/train_log.txt", "a") as f:
@@ -120,8 +112,9 @@ def Train(config):
             f.write("\n")
         print(log_info)  
           
-        if i_epoch % 3 == 2:    
-            Valid(NET, config, i_epoch)
+        if i_epoch % 10 == 9: 
+            save_ckpt(NET, Optimizer, i_epoch, 'models/OACC-Net{}.pth.tar'.format(i_epoch + 1))
+            Valid(NET, config, i_epoch + 1)
 
         Scheduler.step()
         
@@ -135,48 +128,61 @@ def Valid(NET, config, i_epoch):
     Loss = torch.nn.MSELoss().to(config.device)
     
     ValidSet = AllSetLoader(config, kind = 'valid')
-    ValidDataLoader = DataLoader(dataset = ValidSet, batch_size = 1, shuffle = False)   
+    ValidDataLoader = DataLoader(dataset = ValidSet, batch_size = 1, shuffle = False)  
+    
+    scene_list = ['boxes', 'cotton', 'dino', 'sideboard']
+    
+    with open("logs/valid_log.txt", "a") as f:
+        f.write("epoch: {:0>4} ==========".format(i_epoch))
+        f.write("\n")
+        
+    outputs = []
     
     "///Validation///"
     with torch.no_grad():
-        total_loss = 0
-        num_iters = 0
         for i_iter, (lf, dispGT) in tqdm(enumerate(ValidDataLoader), 
                                            total = len(ValidDataLoader)):
             lf = lf.to(config.device)
-            dispGT = dispGT.to(config.device)
             # lf.shape = (b u v h w)
             # dispGT.shape = (b h w)
             
-            dispPred = NET(lf, dispGT)
+            dispPred = NET(lf)
             # dispPred.shape = (b c h w), c = 1
             
+            
             loss_i = Loss(dispPred.squeeze(), dispGT.squeeze())
-            num_iters += 1
-            total_loss += loss_i.item()
-        
-        loss_avg = total_loss / num_iters
-        
-        log_info = "[Valid] " + time.ctime()[4:-5] + "\t epoch: {:0>4} | loss: {:.5f}".format(i_epoch, loss_avg)
-        
-        with open("logs/valid_log.txt", "a") as f:
-            f.write(log_info)
-            f.write("\n")
-        print(log_info)
-        
+            
+            dispPred = dispPred.cpu().numpy()
+            dispGT = dispGT.cpu().numpy()
+            
+            abs_error = np.abs(dispPred - dispGT)
+            bad_pixels = np.sum(abs_error > 0.1)
+            total_pixels = dispPred.size
+            bpr = bad_pixels / total_pixels
+            
+            outputs.append(dispPred)
+            
+            log_info = "[Valid] " + time.ctime()[4:-5] + "\t scene: {:<11} | loss: {:.5f} | bpr: {:.5f}".format(scene_list[i_iter], loss_i, bpr)
+            with open("logs/valid_log.txt", "a") as f:
+                f.write(log_info)
+                f.write("\n")
+            print(log_info)
+            
+    outputs = np.stack(outputs)
+    np.save('./valid_outputs/outputs_{:0>4}.npy'.format(i_epoch), outputs)
+
     return
 
 
-def save_ckpt(model, optimizer, epoch, filename = 'models/checkpoint.pth.tar'):
+def save_ckpt(model, optimizer, epoch, filename = 'models/OACC-Net.pth.tar'):
     state = {
         'epoch': epoch,
         'state_dict': model.state_dict(),
-        'optimizer': optimizer.state_dict(),
     }
     torch.save(state, filename)
     
     
-def load_ckpt(config, filename = 'models/checkpoint.pth.tar'):
+def load_ckpt(config, filename = 'models/OACC-Net.pth.tar'):
     ckpt = torch.load(filename, map_location = {'cuda:0': config.device})
     return ckpt
 

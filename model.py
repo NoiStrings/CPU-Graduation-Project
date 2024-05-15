@@ -360,5 +360,5 @@ class ChannelAttLayer(nn.Module):
         channelAtt = self.getChannelAtt(temp)
         # channelAtt.shape = (b c d hp wp), c = 160, d = 9, hp = h_pooled = 1, wp = w_pooled = 1
         cost_out = cost_in * channelAtt
-        # cost_out.shape = (b c d h w), c = 160, d = 9, h = w = 512
+        # cost_out.shape = (b c d h w), c = 160, d = 9, h = w = patch_size
         return cost_out
